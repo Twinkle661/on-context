@@ -1,0 +1,6 @@
+{
+  "listen": ":8080",
+  "dataFile": "/data/notes.json",
+  "token": "",
+  "ttl": "2h"
+}

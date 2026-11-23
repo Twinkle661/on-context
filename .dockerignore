@@ -1,0 +1,5 @@
+.git
+.env
+data/
+notes.json
+config.json

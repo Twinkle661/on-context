@@ -1,0 +1,13 @@
+services:
+  on-context:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/data
+      # optional: your own config.json instead of the baked-in example
+      # - ./config.json:/etc/on-context/config.json:ro
+    ports:
+      - "127.0.0.1:8080:8080" # put a TLS reverse proxy in front
