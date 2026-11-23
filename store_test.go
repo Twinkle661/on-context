@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -29,6 +30,59 @@ func do(t *testing.T, h http.Handler, method, path, body, token string) *httptes
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+// decodeEnv asserts the response is a {"content":..., "error"?:...} envelope.
+func decodeEnv(t *testing.T, r *httptest.ResponseRecorder) (json.RawMessage, string) {
+	t.Helper()
+	var env map[string]json.RawMessage
+	if err := json.Unmarshal(r.Body.Bytes(), &env); err != nil {
+		t.Fatalf("not JSON: %s", r.Body)
+	}
+	c, ok := env["content"]
+	if !ok {
+		t.Fatalf("missing content key: %s", r.Body)
+	}
+	var e string
+	if raw, ok := env["error"]; ok {
+		_ = json.Unmarshal(raw, &e)
+	}
+	return c, e
+}
+
+func TestEnvelope(t *testing.T) {
+	api, _, _ := newTestAPI(t)
+	h := api.Routes()
+	const tok = "test-token"
+
+	// error: content null + error message
+	r := do(t, h, "GET", "/notes", "", "")
+	if c, e := decodeEnv(t, r); string(c) != "null" || e == "" {
+		t.Fatalf("401 envelope: %s", r.Body)
+	}
+	// list: content is an array
+	r = do(t, h, "GET", "/notes", "", tok)
+	if c, e := decodeEnv(t, r); string(c) != "[]" || e != "" {
+		t.Fatalf("list envelope: %s", r.Body)
+	}
+	// upsert / get / delete: content is the note
+	for _, step := range []struct{ m, p, b string }{
+		{"POST", "/notes", `{"noteName":"a","noteValue":"v"}`},
+		{"GET", "/notes/a", ""},
+		{"DELETE", "/notes/a", ""},
+	} {
+		r = do(t, h, step.m, step.p, step.b, tok)
+		c, _ := decodeEnv(t, r)
+		var n Note
+		if err := json.Unmarshal(c, &n); err != nil || n.NoteName != "a" || n.NoteValue != "v" {
+			t.Fatalf("%s %s envelope: %s", step.m, step.p, r.Body)
+		}
+	}
+	// 404: content null + error
+	r = do(t, h, "GET", "/notes/a", "", tok)
+	if c, e := decodeEnv(t, r); r.Code != 404 || string(c) != "null" || e == "" {
+		t.Fatalf("404 envelope: %d %s", r.Code, r.Body)
+	}
 }
 
 func TestFlow(t *testing.T) {
@@ -84,13 +138,13 @@ func TestFlow(t *testing.T) {
 		t.Fatalf("reload: %+v", got)
 	}
 
-	if r := do(t, h, "DELETE", "/notes/p", "", tok); r.Code != 204 {
+	if r := do(t, h, "DELETE", "/notes/p", "", tok); r.Code != 200 {
 		t.Fatalf("drop: %d", r.Code)
 	}
 	if r := do(t, h, "DELETE", "/notes/p", "", tok); r.Code != 404 {
 		t.Fatalf("drop missing: %d", r.Code)
 	}
-	if r := do(t, h, "GET", "/notes", "", tok); strings.TrimSpace(r.Body.String()) != "[]" {
+	if r := do(t, h, "GET", "/notes", "", tok); strings.TrimSpace(r.Body.String()) != `{"content":[]}` {
 		t.Fatalf("empty list should be []: %s", r.Body)
 	}
 }

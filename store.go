@@ -149,13 +149,15 @@ func (s *Store) Upsert(name string, value *string, persistent *bool) (Note, bool
 	return *n, created, s.persist()
 }
 
-func (s *Store) Drop(name string) error {
+// Drop removes a note and returns what was removed.
+func (s *Store) Drop(name string) (Note, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	i := s.indexOf(name)
 	if i < 0 {
-		return ErrNotFound
+		return Note{}, ErrNotFound
 	}
+	n := s.notes[i]
 	s.notes = append(s.notes[:i], s.notes[i+1:]...)
-	return s.persist()
+	return n, s.persist()
 }
