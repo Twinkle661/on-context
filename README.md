@@ -6,7 +6,7 @@ Uses only the Go standard library.
 
 ## Note shape
 
-```json
+```jsonc
 {
   "noteName": "weather",
   "noteValue": "{\"WeatherCondition\":\"Windy\",\"FeelsLike\":\"15°C\"}",
@@ -23,13 +23,20 @@ Uses only the Go standard library.
 
 Every `/notes` route needs `Authorization: Bearer <token>` or `X-Api-Key: <token>`.
 
-| Method | Path | Behaviour |
-|---|---|---|
-| `GET` | `/notes` | List all notes |
-| `GET` | `/notes/{name}` | Get one note (404 if missing) |
-| `POST` | `/notes` | Upsert. Returns `201` if created, `200` if updated |
-| `DELETE` | `/notes/{name}` | Delete (`204`, or 404 if missing) |
-| `GET` | `/healthz` | Health check, no auth |
+| Method | Path | `content` | Status |
+|---|---|---|---|
+| `GET` | `/notes` | array of notes | `200` |
+| `GET` | `/notes/{name}` | the note | `200` / `404` |
+| `POST` | `/notes` | the note after upsert | `201` created / `200` updated |
+| `DELETE` | `/notes/{name}` | the removed note | `200` / `404` |
+| `GET` | `/healthz` | — (no body, no auth) | `204` |
+
+Every JSON response uses the same envelope:
+
+```jsonc
+{"content": [ ... ]}                          // success
+{"content": null, "error": "note not found"}  // failure
+```
 
 Upsert body: `{"noteName": "...", "noteValue": "...", "persistent": true}`
 

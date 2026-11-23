@@ -66,7 +66,7 @@ func (a *API) normalize(next http.Handler) http.Handler {
 }
 
 func (a *API) listAll(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, a.store.List())
+	writeContent(w, http.StatusOK, a.store.List())
 }
 
 func (a *API) listItem(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +75,7 @@ func (a *API) listItem(w http.ResponseWriter, r *http.Request) {
 		writeStoreErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, n)
+	writeContent(w, http.StatusOK, n)
 }
 
 type upsertReq struct {
@@ -106,29 +106,41 @@ func (a *API) upsert(w http.ResponseWriter, r *http.Request) {
 	if created {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, n)
+	writeContent(w, status, n)
 }
 
 func (a *API) drop(w http.ResponseWriter, r *http.Request) {
-	if err := a.store.Drop(r.PathValue("name")); err != nil {
+	n, err := a.store.Drop(r.PathValue("name"))
+	if err != nil {
 		writeStoreErr(w, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	writeContent(w, http.StatusOK, n) // returns the removed note
 }
 
 // ---- helpers ----
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
+// envelope is the shape of every JSON response:
+// success -> {"content": <data>}, failure -> {"content": null, "error": "..."}
+type envelope struct {
+	Content any    `json:"content"`
+	Error   string `json:"error,omitempty"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, env envelope) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
+	_ = enc.Encode(env)
+}
+
+func writeContent(w http.ResponseWriter, status int, v any) {
+	writeJSON(w, status, envelope{Content: v})
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	writeJSON(w, status, envelope{Error: msg})
 }
 
 func writeStoreErr(w http.ResponseWriter, err error) {
