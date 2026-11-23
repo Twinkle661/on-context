@@ -66,11 +66,11 @@ Use `-config path` or `ONCONTEXT_CONFIG` to point to a config file somewhere els
 ```sh
 go run .                       # local
 cp .env.example .env           # set ONCONTEXT_TOKEN
-mkdir -p data && sudo chown 65532:65532 data
+mkdir -p data                  # as your normal user (uid 1000)
 docker compose up -d --build
 ```
 
-The image runs as distroless `nonroot` (uid 65532), so the `./data` folder you mount must be writable by that user.
+The container runs as `1000:100` with working directory `/data`, so a `./data` folder created by your normal user works as-is. If your host user is different, override it in compose with `user: "<uid>:<gid>"`.
 
 ## License
 
